@@ -295,19 +295,9 @@ class CompetitorScraper:
                 
                 # Extract brand if missing
                 if not product.brand:
-                    brand_patterns = [
-                        r'["\']brand["\']\s*:\s*["\']([^"\']*)["\'']',
-                        r'<meta[^>]*property=["\']product:brand["\'][^>]*content=["\']([^"\']*)["\'']',
-                        r'class=["\'][^"\']*(brand|manufacturer)[^"\']*(["\']).+?>([^<]+)',
-                    ]
-                    for pattern in brand_patterns:
-                        try:
-                            match = re.search(pattern, html, re.IGNORECASE)
-                            if match:
-                                product.brand = match.group(-1).strip()  # Get last group
-                                break
-                        except (re.error, IndexError):
-                            continue
+                    match = re.search(r'"brand"\s*:\s*"([^\"]+)"', html, re.IGNORECASE)
+                    if match:
+                        product.brand = match.group(1).strip()
                 
                 return product if product.title and (product.price or len(product.title) > 10) else None
                 
