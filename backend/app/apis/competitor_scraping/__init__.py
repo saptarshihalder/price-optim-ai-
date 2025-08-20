@@ -3,7 +3,7 @@
 
 
 from fastapi import APIRouter, BackgroundTasks
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 import asyncio
 import aiohttp
@@ -15,6 +15,7 @@ import re
 from urllib.parse import urljoin, urlparse
 from datetime import datetime
 from app.libs.product_matcher import create_product_matcher, ProductMatch
+from app.libs.database import save_scraped_products
 
 router = APIRouter()
 
@@ -46,7 +47,7 @@ class ScrapedProduct(BaseModel):
     match_score: Optional[float] = None
     match_confidence: Optional[str] = None
     match_reasoning: Optional[str] = None
-    raw_data: Dict[str, Any] = {}
+    raw_data: Dict[str, Any] = Field(default_factory=dict)
 
 class ScrapingProgress(BaseModel):
     status: ScrapingStatus
@@ -54,7 +55,7 @@ class ScrapingProgress(BaseModel):
     completed_stores: int = 0
     total_stores: int = 0
     products_found: int = 0
-    errors: List[str] = []
+    errors: List[str] = Field(default_factory=list)
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
 
@@ -445,10 +446,13 @@ async def scrape_competitors_background(task_id: str, request: ScrapingRequest):
                     progress.errors.append(f"Error scraping {TARGET_STORES[i].name}: {str(result)}")
                 else:
                     all_products.extend(result)
-        
-        # Store results
+
+        # Persist results to database
+        await save_scraped_products(all_products)
+
+        # Store results in memory
         scraping_results[task_id] = all_products
-        
+
         progress.status = ScrapingStatus.COMPLETED
         progress.completed_at = datetime.now()
         
