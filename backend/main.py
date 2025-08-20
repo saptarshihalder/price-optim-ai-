@@ -14,7 +14,7 @@ def get_router_config() -> dict:
         # Note: This file is not available to the agent
         cfg = json.loads(open("routers.json").read())
     except:
-        return False
+        return {}
     return cfg
 
 
@@ -54,8 +54,14 @@ def import_api_routers() -> APIRouter:
                         else [Depends(get_authorized_user)]
                     ),
                 )
+        except ImportError as e:
+            print(f"Error importing API router {name}: {e}")
+            continue
+        except AttributeError as e:
+            print(f"Error getting router attribute for API {name}: {e}")
+            continue
         except Exception as e:
-            print(e)
+            print(f"An unexpected error occurred while importing API {name}: {e}")
             continue
 
     print(routes.routes)
