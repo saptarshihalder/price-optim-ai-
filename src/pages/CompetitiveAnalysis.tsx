@@ -24,8 +24,8 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import brain from 'brain';
-import { ScrapedProduct } from 'types';
+import { brain } from '../brain';
+import { ScrapedProduct } from '../brain/data-contracts';
 import { StorageUtils } from 'utils/storage';
 
 interface OurProduct {
