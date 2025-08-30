@@ -22,7 +22,7 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import { toast } from 'sonner';
-import brain from 'brain';
+import brain from '@/brain';
 import { PriceRecommendation, ProductInput, BatchOptimizationRequest } from 'types';
 import { StorageUtils } from 'utils/storage';
 

@@ -26,7 +26,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { brain } from '../brain';
 import { ScrapedProduct } from '../brain/data-contracts';
-import { StorageUtils } from 'utils/storage';
+import { StorageUtils } from '@/utils/storage';
 
 interface OurProduct {
   id: string;

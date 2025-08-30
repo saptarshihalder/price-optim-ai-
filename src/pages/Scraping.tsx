@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import brain from 'brain';
 import { ScrapingProgress, ScrapedProduct, ScrapingStatus } from 'types';
 import { StorageUtils } from 'utils/storage';
+import type { CompetitorScrapingRequest, CompetitorScrapingResult } from "@/brain/data-contracts";
 
 const ScrapingDashboard: React.FC = () => {
   const navigate = useNavigate();
