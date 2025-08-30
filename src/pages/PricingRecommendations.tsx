@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -22,35 +22,9 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import { toast } from 'sonner';
-
-interface Product {
-  id: string;
-  name: string;
-  current_price: number;
-  unit_cost: number;
-  currency: string;
-  category: string;
-  brand: string;
-}
-
-interface PriceRecommendation {
-  product_id: string;
-  current_price: number;
-  recommended_price: number;
-  currency: string;
-  price_change: number;
-  price_change_percent: number;
-  expected_demand_change_percent: number;
-  expected_profit_change: number;
-  expected_revenue_change: number;
-  confidence_score: number;
-  risk_level: string;
-  rationale: string;
-  competitive_position: string;
-  psychological_price_applied: boolean;
-  constraint_flags: string[];
-  scenario_analysis: Record<string, any>;
-}
+import brain from 'brain';
+import { PriceRecommendation, ProductInput, BatchOptimizationRequest } from 'types';
+import { StorageUtils } from 'utils/storage';
 
 interface RecommendationWithSelection extends PriceRecommendation {
   selected: boolean;
@@ -77,8 +51,8 @@ const PricingRecommendations = () => {
   });
   const [selectedAll, setSelectedAll] = useState(false);
 
-  // Sample products data
-  const sampleProducts: Product[] = [
+  // Product catalog - in a real app, this would come from a database API
+  const productCatalog: ProductInput[] = [
     {
       id: 'SG0001',
       name: 'Reiek Peak Wooden Sunglasses (Incl. cork casing)',
@@ -107,6 +81,33 @@ const PricingRecommendations = () => {
       brand: 'Dzukou'
     },
     {
+      id: 'BT0012-13',
+      name: 'Saint Elias Thermos bottles',
+      current_price: 32.95,
+      unit_cost: 9.31,
+      currency: 'EUR',
+      category: 'bottle',
+      brand: 'Dzukou'
+    },
+    {
+      id: 'BT0015-16',
+      name: 'Inca Trail Coffee Mugs',
+      current_price: 31.95,
+      unit_cost: 8.55,
+      currency: 'EUR',
+      category: 'mug',
+      brand: 'Dzukou'
+    },
+    {
+      id: 'PS0007',
+      name: 'Woodland Mouse Phone Stand',
+      current_price: 18.95,
+      unit_cost: 3.01,
+      currency: 'EUR',
+      category: 'stand',
+      brand: 'Dzukou'
+    },
+    {
       id: 'NB0011-12',
       name: 'Tiger Trail Notebooks',
       current_price: 25.95,
@@ -114,57 +115,132 @@ const PricingRecommendations = () => {
       currency: 'EUR',
       category: 'notebook',
       brand: 'Dzukou'
+    },
+    {
+      id: 'NB0013-15',
+      name: 'Papillon Notebooks',
+      current_price: 23.95,
+      unit_cost: 5.21,
+      currency: 'EUR',
+      category: 'notebook',
+      brand: 'Dzukou'
+    },
+    {
+      id: 'LB0017',
+      name: 'Jim Corbett Lunchbox Band 1200ML',
+      current_price: 32.95,
+      unit_cost: 19.45,
+      currency: 'EUR',
+      category: 'lunchbox',
+      brand: 'Dzukou'
+    },
+    {
+      id: 'LB0019',
+      name: 'Jim Corbett Lunchbox Band 800ML',
+      current_price: 30.95,
+      unit_cost: 7.59,
+      currency: 'EUR',
+      category: 'lunchbox',
+      brand: 'Dzukou'
+    },
+    {
+      id: 'SH0017-26',
+      name: 'Timeless Silk Colored Stole',
+      current_price: 73.95,
+      unit_cost: 39.48,
+      currency: 'EUR',
+      category: 'stole',
+      brand: 'Dzukou'
+    },
+    {
+      id: 'SH0025',
+      name: 'Silk Uncut White Stole',
+      current_price: 114.95,
+      unit_cost: 33.92,
+      currency: 'EUR',
+      category: 'stole',
+      brand: 'Dzukou'
     }
   ];
 
-  // Generate sample AI-powered pricing recommendations
+  // Generate AI-powered pricing recommendations using real backend API
   const generateRecommendations = async () => {
     setOptimizing(true);
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Prepare competitor data from latest scraping results
+      const competitorData: Record<string, any[]> = {};
+      
+      // Try to get competitor data from latest scraping
+      const latestTaskId = StorageUtils.getLatestScrapingTaskId();
+      if (latestTaskId) {
+        try {
+          const resultsResponse = await brain.get_scraping_results(latestTaskId);
+          const scrapingResults = resultsResponse.data;
+          
+          // Group competitor data by product category for matching
+          productCatalog.forEach(product => {
+            const matchingCompetitors = scrapingResults.filter(result => {
+              const categoryMatch = product.category && result.title.toLowerCase().includes(product.category);
+              const nameMatch = result.match_score && result.match_score > 0.1;
+              return (categoryMatch || nameMatch) && result.price && result.price > 0;
+            }).map(result => ({
+              store_name: result.store_name,
+              price: result.price!,
+              currency: result.currency,
+              in_stock: result.in_stock,
+              match_confidence: result.match_score || 0,
+              product_url: result.product_url
+            }));
 
-      // Generate sample recommendations
-      const sampleRecommendations: PriceRecommendation[] = sampleProducts.map((product, index) => {
-        const priceIncrease = 0.10 + (Math.random() * 0.15); // 10-25% increase
-        const recommendedPrice = product.current_price * (1 + priceIncrease);
-        const priceChange = recommendedPrice - product.current_price;
-        const priceChangePercent = (priceChange / product.current_price) * 100;
+            if (matchingCompetitors.length > 0) {
+              competitorData[product.id] = matchingCompetitors;
+            }
+          });
+        } catch (error) {
+          console.warn('Could not load competitor data:', error);
+        }
+      }
+
+      // Prepare batch optimization request
+      const batchRequest: BatchOptimizationRequest = {
+        products: productCatalog,
+        competitor_data: competitorData,
+        global_constraints: {
+          min_margin_percent: 25.0,
+          max_price_increase_percent: 30.0,
+          psychological_pricing: true,
+          competitive_positioning: 'competitive',
+          demand_sensitivity: 1.0
+        }
+      };
+
+      // Make actual API call to backend
+      const response = await brain.optimize_batch(batchRequest);
+      const data = response.data;
+
+      if (data.recommendations) {
+        // Add selection state and priority ranking
+        const rankedRecommendations = data.recommendations
+          .map((rec: PriceRecommendation, index: number) => ({
+            ...rec,
+            selected: false,
+            priority_rank: index + 1
+          }))
+          .sort((a: PriceRecommendation, b: PriceRecommendation) => 
+            b.expected_profit_change - a.expected_profit_change
+          );
+
+        setRecommendations(rankedRecommendations);
+        toast.success(`Generated ${rankedRecommendations.length} AI-powered pricing recommendations`);
         
-        return {
-          product_id: product.id,
-          current_price: product.current_price,
-          recommended_price: Math.round(recommendedPrice * 100) / 100,
-          currency: product.currency,
-          price_change: Math.round(priceChange * 100) / 100,
-          price_change_percent: Math.round(priceChangePercent * 100) / 100,
-          expected_demand_change_percent: -priceChangePercent * 0.8, // Elastic demand
-          expected_profit_change: priceChange * 0.8, // Simplified profit calculation
-          expected_revenue_change: priceChange * 0.9,
-          confidence_score: 0.75 + (Math.random() * 0.2), // 75-95% confidence
-          risk_level: ['low', 'medium', 'high'][Math.floor(Math.random() * 3)],
-          rationale: `Based on competitive analysis and demand elasticity, a ${priceChangePercent.toFixed(1)}% price increase is recommended to optimize profit margins while maintaining market competitiveness.`,
-          competitive_position: ['underpriced', 'competitive', 'premium'][Math.floor(Math.random() * 3)],
-          psychological_price_applied: Math.random() > 0.5,
-          constraint_flags: [],
-          scenario_analysis: {}
-        };
-      });
-
-      // Add selection state and priority ranking
-      const rankedRecommendations = sampleRecommendations
-        .map((rec, index) => ({
-          ...rec,
-          selected: false,
-          priority_rank: index + 1
-        }))
-        .sort((a, b) => b.expected_profit_change - a.expected_profit_change);
-
-      setRecommendations(rankedRecommendations);
-      toast.success(`Generated ${rankedRecommendations.length} pricing recommendations`);
+        // Show summary from backend
+        if (data.summary) {
+          console.log('Optimization Summary:', data.summary);
+        }
+      }
     } catch (error) {
       console.error('Optimization failed:', error);
-      toast.error('Failed to generate recommendations');
+      toast.error('Failed to generate recommendations. Please check your connection and try again.');
     } finally {
       setOptimizing(false);
     }
@@ -174,7 +250,7 @@ const PricingRecommendations = () => {
   const filteredRecommendations = useMemo(() => {
     return recommendations.filter(rec => {
       if (filters.category !== 'all') {
-        const product = sampleProducts.find(p => p.id === rec.product_id);
+        const product = productCatalog.find(p => p.id === rec.product_id);
         if (!product || product.category !== filters.category) return false;
       }
       if (rec.expected_profit_change < filters.minProfitThreshold) return false;
@@ -182,7 +258,7 @@ const PricingRecommendations = () => {
       if (filters.riskLevel !== 'all' && rec.risk_level !== filters.riskLevel) return false;
       return true;
     });
-  }, [recommendations, filters, sampleProducts]);
+  }, [recommendations, filters, productCatalog]);
 
   // Calculate summary statistics
   const summary = useMemo(() => {
@@ -241,7 +317,7 @@ const PricingRecommendations = () => {
     ];
 
     const csvData = selectedRecs.map(rec => {
-      const product = sampleProducts.find(p => p.id === rec.product_id);
+      const product = productCatalog.find(p => p.id === rec.product_id);
       return [
         rec.product_id,
         product?.name || '',
@@ -286,9 +362,9 @@ const PricingRecommendations = () => {
 
   // Get profit impact color
   const getProfitColor = (change: number) => {
-    if (change > 5) return 'text-green-400';
+    if (change > 50) return 'text-green-400';
     if (change > 0) return 'text-green-300';
-    if (change > -2) return 'text-amber-400';
+    if (change > -25) return 'text-amber-400';
     return 'text-red-400';
   };
 
@@ -355,6 +431,11 @@ const PricingRecommendations = () => {
               <p className="text-gray-400 mb-6 max-w-md">
                 Generate AI-powered pricing recommendations based on competitive analysis and profit optimization algorithms.
               </p>
+              <div className="space-y-2 text-sm text-gray-500 mb-6">
+                <p>• Analysis will include {productCatalog.length} products from your catalog</p>
+                <p>• AI will consider competitor data if available from recent scraping</p>
+                <p>• Recommendations will optimize for profit while maintaining competitiveness</p>
+              </div>
               <Button 
                 onClick={generateRecommendations}
                 disabled={optimizing}
@@ -530,7 +611,7 @@ const PricingRecommendations = () => {
                     </thead>
                     <tbody>
                       {filteredRecommendations.map((rec) => {
-                        const product = sampleProducts.find(p => p.id === rec.product_id);
+                        const product = productCatalog.find(p => p.id === rec.product_id);
                         return (
                           <tr key={rec.product_id} className="border-b border-gray-700/50 hover:bg-gray-700/20">
                             <td className="p-4">

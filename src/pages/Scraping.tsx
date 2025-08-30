@@ -7,29 +7,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Search, CheckCircle, XCircle, Clock, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-
-interface ScrapingProgress {
-  status: 'pending' | 'running' | 'completed' | 'failed';
-  current_store?: string;
-  completed_stores: number;
-  total_stores: number;
-  products_found: number;
-  errors: string[];
-  started_at?: string;
-  completed_at?: string;
-}
-
-interface ScrapedProduct {
-  store_name: string;
-  title: string;
-  price?: number;
-  currency: string;
-  brand?: string;
-  product_url: string;
-  in_stock: boolean;
-  scraped_at: string;
-  match_score?: number;
-}
+import brain from 'brain';
+import { ScrapingProgress, ScrapedProduct, ScrapingStatus } from 'types';
+import { StorageUtils } from 'utils/storage';
 
 const ScrapingDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -51,21 +31,24 @@ const ScrapingDashboard: React.FC = () => {
     try {
       setIsLoading(true);
       setResults([]);
+      setProgress(null);
       
-      // Simulate API call
-      const mockTaskId = `scrape_${Date.now()}`;
-      setTaskId(mockTaskId);
+      // Make actual API call to backend
+      const response = await brain.start_scraping({
+        target_products: targetProducts,
+        max_products_per_store: 15
+      });
+
+      const data = response.data;
+      setTaskId(data.task_id);
       
-      // Simulate progress updates
-      const mockProgress: ScrapingProgress = {
-        status: 'running',
-        current_store: 'EarthHero',
-        completed_stores: 0,
-        total_stores: 15,
-        products_found: 0,
-        errors: []
-      };
-      setProgress(mockProgress);
+      // Store task ID in localStorage for later retrieval
+      StorageUtils.setLatestScrapingTaskId(data.task_id);
+      StorageUtils.addTaskToHistory({
+        taskId: data.task_id,
+        startedAt: new Date().toISOString(),
+        status: data.status
+      });
       
       toast.success('Scraping started successfully!');
       
@@ -76,111 +59,82 @@ const ScrapingDashboard: React.FC = () => {
     }
   };
 
-  // Simulate progress updates
+  // Poll for progress updates
   useEffect(() => {
     if (!taskId || !isLoading) return;
 
-    const stores = [
-      'EarthHero', 'GOODEE', 'Made Trade', 'Package Free Shop', 'The Citizenry',
-      'Ten Thousand Villages', 'NOVICA', 'The Little Market', 'DoneGood',
-      'Folksy', 'IndieCart', 'Zero Waste Store', 'EcoRoots', 'Wild Minimalist', 'Green Eco Dream'
-    ];
+    const pollProgress = async () => {
+      try {
+        const response = await brain.get_scraping_progress(taskId);
+        const progressData = response.data;
+        setProgress(progressData);
 
-    let currentStore = 0;
-    let productsFound = 0;
-
-    const interval = setInterval(() => {
-      if (currentStore >= stores.length) {
-        // Scraping completed
-        const sampleResults: ScrapedProduct[] = [
-          {
-            store_name: 'EarthHero',
-            title: 'Bamboo Wooden Sunglasses',
-            price: 45.00,
-            currency: 'USD',
-            brand: 'EcoShades',
-            product_url: 'https://earthhero.com/products/bamboo-sunglasses',
-            in_stock: true,
-            scraped_at: new Date().toISOString(),
-            match_score: 0.85
-          },
-          {
-            store_name: 'GOODEE',
-            title: 'Sustainable Wood Frame Glasses',
-            price: 52.00,
-            currency: 'USD',
-            brand: 'GreenVision',
-            product_url: 'https://goodeeworld.com/products/wood-glasses',
-            in_stock: true,
-            scraped_at: new Date().toISOString(),
-            match_score: 0.78
-          },
-          {
-            store_name: 'Made Trade',
-            title: 'Eco-Friendly Wooden Sunglasses',
-            price: 65.00,
-            currency: 'USD',
-            brand: 'SustainShades',
-            product_url: 'https://madetrade.com/products/wooden-sunglasses',
-            in_stock: false,
-            scraped_at: new Date().toISOString(),
-            match_score: 0.92
-          },
-          {
-            store_name: 'Package Free Shop',
-            title: 'Stainless Steel Water Bottle',
-            price: 28.00,
-            currency: 'USD',
-            brand: 'HydroClean',
-            product_url: 'https://packagefreeshop.com/products/steel-bottle',
-            in_stock: true,
-            scraped_at: new Date().toISOString(),
-            match_score: 0.65
-          },
-          {
-            store_name: 'Zero Waste Store',
-            title: 'Insulated Thermos Flask',
-            price: 35.00,
-            currency: 'USD',
-            brand: 'EcoFlask',
-            product_url: 'https://zerowaste.store/products/thermos-flask',
-            in_stock: true,
-            scraped_at: new Date().toISOString(),
-            match_score: 0.72
-          }
-        ];
-
-        setProgress({
-          status: 'completed',
-          completed_stores: stores.length,
-          total_stores: stores.length,
-          products_found: sampleResults.length,
-          errors: [],
-          completed_at: new Date().toISOString()
+        // Update task history
+        StorageUtils.updateTaskInHistory(taskId, {
+          status: progressData.status,
+          productCount: progressData.products_found
         });
-        setResults(sampleResults);
-        setIsLoading(false);
-        toast.success(`Scraping completed! Found ${sampleResults.length} products.`);
-        clearInterval(interval);
-        return;
+
+        if (progressData.status === ScrapingStatus.Completed) {
+          // Fetch results
+          try {
+            const resultsResponse = await brain.get_scraping_results(taskId);
+            const resultsData = resultsResponse.data;
+            setResults(resultsData);
+            setIsLoading(false);
+            toast.success(`Scraping completed! Found ${resultsData.length} products.`);
+          } catch (resultsError) {
+            console.error('Error fetching results:', resultsError);
+            toast.error('Scraping completed but failed to fetch results');
+            setIsLoading(false);
+          }
+        } else if (progressData.status === ScrapingStatus.Failed) {
+          setIsLoading(false);
+          toast.error('Scraping failed. Check the error logs.');
+        }
+      } catch (error) {
+        console.error('Error polling progress:', error);
+        // Don't show error toast for polling failures as they're frequent
       }
+    };
 
-      productsFound += Math.floor(Math.random() * 3) + 1;
-      
-      setProgress({
-        status: 'running',
-        current_store: stores[currentStore],
-        completed_stores: currentStore,
-        total_stores: stores.length,
-        products_found: productsFound,
-        errors: []
-      });
-
-      currentStore++;
-    }, 1500);
-
+    // Poll immediately, then every 3 seconds
+    pollProgress();
+    const interval = setInterval(pollProgress, 3000);
     return () => clearInterval(interval);
   }, [taskId, isLoading]);
+
+  // Load existing task on component mount
+  useEffect(() => {
+    const existingTaskId = StorageUtils.getLatestScrapingTaskId();
+    if (existingTaskId) {
+      setTaskId(existingTaskId);
+      // Try to get the current status
+      brain.get_scraping_progress(existingTaskId)
+        .then(response => {
+          const progressData = response.data;
+          setProgress(progressData);
+          
+          if (progressData.status === ScrapingStatus.Completed) {
+            // Also fetch results if completed
+            brain.get_scraping_results(existingTaskId)
+              .then(resultsResponse => {
+                setResults(resultsResponse.data);
+              })
+              .catch(error => {
+                console.error('Error loading existing results:', error);
+              });
+          } else if (progressData.status === ScrapingStatus.Running) {
+            setIsLoading(true);
+          }
+        })
+        .catch(error => {
+          console.error('Error loading existing task progress:', error);
+          // Clear invalid task ID
+          StorageUtils.clearLatestScrapingTaskId();
+        });
+    }
+  }, []);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -277,6 +231,26 @@ const ScrapingDashboard: React.FC = () => {
                 </>
               )}
             </Button>
+
+            {/* Task History */}
+            {StorageUtils.getTaskHistory().length > 0 && (
+              <div className="border-t border-gray-700 pt-4">
+                <div className="text-sm font-medium text-gray-300 mb-2">Recent Tasks</div>
+                <div className="space-y-2">
+                  {StorageUtils.getTaskHistory().slice(0, 3).map((task) => (
+                    <div key={task.taskId} className="flex items-center justify-between text-xs text-gray-400 bg-gray-700/30 p-2 rounded">
+                      <span>{task.taskId}</span>
+                      <div className="flex items-center gap-2">
+                        <Badge className={getStatusColor(task.status)}>
+                          {task.status}
+                        </Badge>
+                        {task.productCount && <span>{task.productCount} products</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -366,6 +340,7 @@ const ScrapingDashboard: React.FC = () => {
                       <th className="text-left p-2 text-gray-300">Price</th>
                       <th className="text-left p-2 text-gray-300">Brand</th>
                       <th className="text-left p-2 text-gray-300">Stock</th>
+                      <th className="text-left p-2 text-gray-300">Match Score</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -383,6 +358,14 @@ const ScrapingDashboard: React.FC = () => {
                           <Badge variant={product.in_stock ? 'default' : 'destructive'} className="text-xs">
                             {product.in_stock ? 'In Stock' : 'Out of Stock'}
                           </Badge>
+                        </td>
+                        <td className="p-2">
+                          {product.match_score && (
+                            <div className="flex items-center gap-2">
+                              <Progress value={product.match_score * 100} className="w-16 h-2" />
+                              <span className="text-xs text-blue-400">{(product.match_score * 100).toFixed(0)}%</span>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))}

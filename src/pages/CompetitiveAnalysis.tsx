@@ -18,24 +18,15 @@ import {
   CheckCircle,
   BarChart3,
   Zap,
-  RefreshCw
+  RefreshCw,
+  ArrowLeft
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-
-interface ScrapedProduct {
-  store_name: string;
-  title: string;
-  price?: number;
-  currency: string;
-  brand?: string;
-  product_url: string;
-  in_stock: boolean;
-  scraped_at: string;
-  match_score?: number;
-  match_confidence?: string;
-  match_reasoning?: string;
-}
+import brain from 'brain';
+import { ScrapedProduct } from 'types';
+import { StorageUtils } from 'utils/storage';
 
 interface OurProduct {
   id: string;
@@ -59,17 +50,19 @@ interface ComparisonRow {
 }
 
 const CompetitiveAnalysis: React.FC = () => {
+  const navigate = useNavigate();
   const [comparisonData, setComparisonData] = useState<ComparisonRow[]>([]);
   const [filteredData, setFilteredData] = useState<ComparisonRow[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<string>('profit_opportunity');
   const [filterBy, setFilterBy] = useState<string>('all');
   const [selectedProduct, setSelectedProduct] = useState<ComparisonRow | null>(null);
   const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [hasScrapingData, setHasScrapingData] = useState(false);
 
-  // Our product catalog
+  // Our product catalog from the CSV data
   const ourProducts: OurProduct[] = [
     { id: 'SG0001', name: 'Reiek Peak Wooden Sunglasses', current_price: 57.95, unit_cost: 14.23, currency: 'EUR', category: 'sunglasses' },
     { id: 'SG0002', name: 'Fibonacci Wooden Sunglasses', current_price: 61.50, unit_cost: 14.23, currency: 'EUR', category: 'sunglasses' },
@@ -85,86 +78,57 @@ const CompetitiveAnalysis: React.FC = () => {
     { id: 'SH0025', name: 'Silk Uncut White Stole', current_price: 114.95, unit_cost: 33.92, currency: 'EUR', category: 'stole' }
   ];
 
-  // Load sample data on component mount
+  // Load scraping results on component mount
   useEffect(() => {
-    loadSampleData();
+    loadLatestScrapingResults();
   }, []);
 
-  const loadSampleData = () => {
-    setLoading(true);
-    
-    // Sample competitor data for demonstration
-    const sampleData: ScrapedProduct[] = [
-      {
-        store_name: 'EarthHero',
-        title: 'Bamboo Wooden Sunglasses',
-        price: 45.00,
-        currency: 'USD',
-        brand: 'EcoShades',
-        product_url: 'https://earthhero.com/products/bamboo-sunglasses',
-        in_stock: true,
-        scraped_at: new Date().toISOString(),
-        match_score: 0.85,
-        match_confidence: 'high',
-        match_reasoning: 'category match (sunglasses); material match (wood)'
-      },
-      {
-        store_name: 'GOODEE',
-        title: 'Sustainable Wood Frame Glasses',
-        price: 52.00,
-        currency: 'USD',
-        brand: 'GreenVision',
-        product_url: 'https://goodeeworld.com/products/wood-glasses',
-        in_stock: true,
-        scraped_at: new Date().toISOString(),
-        match_score: 0.78,
-        match_confidence: 'high',
-        match_reasoning: 'category match (sunglasses); material match (wood)'
-      },
-      {
-        store_name: 'Made Trade',
-        title: 'Eco-Friendly Wooden Sunglasses',
-        price: 65.00,
-        currency: 'USD',
-        brand: 'SustainShades',
-        product_url: 'https://madetrade.com/products/wooden-sunglasses',
-        in_stock: false,
-        scraped_at: new Date().toISOString(),
-        match_score: 0.92,
-        match_confidence: 'high',
-        match_reasoning: 'category match (sunglasses); material match (wood); high text similarity'
-      },
-      {
-        store_name: 'Package Free Shop',
-        title: 'Stainless Steel Water Bottle',
-        price: 28.00,
-        currency: 'USD',
-        brand: 'HydroClean',
-        product_url: 'https://packagefreeshop.com/products/steel-bottle',
-        in_stock: true,
-        scraped_at: new Date().toISOString(),
-        match_score: 0.65,
-        match_confidence: 'medium',
-        match_reasoning: 'category match (bottle)'
-      },
-      {
-        store_name: 'Zero Waste Store',
-        title: 'Insulated Thermos Flask',
-        price: 35.00,
-        currency: 'USD',
-        brand: 'EcoFlask',
-        product_url: 'https://zerowaste.store/products/thermos-flask',
-        in_stock: true,
-        scraped_at: new Date().toISOString(),
-        match_score: 0.72,
-        match_confidence: 'medium',
-        match_reasoning: 'category match (bottle); material similarity'
+  const loadLatestScrapingResults = async () => {
+    try {
+      setLoading(true);
+      
+      // Try to get the latest task ID from localStorage
+      const latestTaskId = StorageUtils.getLatestScrapingTaskId();
+      
+      if (!latestTaskId) {
+        setHasScrapingData(false);
+        setLoading(false);
+        return;
       }
-    ];
-    
-    generateComparisonData(sampleData);
-    setLoading(false);
-    setLastRefresh(new Date());
+
+      // Check if the task is completed
+      const progressResponse = await brain.get_scraping_progress(latestTaskId);
+      const progressData = progressResponse.data;
+
+      if (progressData.status !== 'completed') {
+        setHasScrapingData(false);
+        setLoading(false);
+        toast.error('Latest scraping task is not completed yet. Please wait or start a new scraping task.');
+        return;
+      }
+
+      // Fetch the actual results
+      const resultsResponse = await brain.get_scraping_results(latestTaskId);
+      const results = resultsResponse.data;
+      
+      if (results.length === 0) {
+        setHasScrapingData(false);
+        setLoading(false);
+        toast.error('No scraping results found. Please run a scraping task first.');
+        return;
+      }
+
+      setHasScrapingData(true);
+      generateComparisonData(results);
+      setLastRefresh(new Date());
+      
+    } catch (error) {
+      console.error('Error loading scraping results:', error);
+      setHasScrapingData(false);
+      toast.error('Failed to load scraping results. Please run a scraping task first.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const generateComparisonData = (results: ScrapedProduct[]) => {
@@ -174,12 +138,12 @@ const CompetitiveAnalysis: React.FC = () => {
       // Find competitors for this product based on category and match score
       const competitors = results.filter(result => {
         const categoryMatch = product.category && result.title.toLowerCase().includes(product.category);
-        const nameMatch = result.match_score && result.match_score > 0.3;
+        const nameMatch = result.match_score && result.match_score > 0.1;
         return categoryMatch || nameMatch;
       });
       
       if (competitors.length > 0) {
-        const prices = competitors.filter(c => c.price).map(c => c.price!);
+        const prices = competitors.filter(c => c.price && c.price > 0).map(c => c.price!);
         
         if (prices.length > 0) {
           const min_price = Math.min(...prices);
@@ -226,22 +190,20 @@ const CompetitiveAnalysis: React.FC = () => {
     setFilteredData(comparisonRows);
   };
 
-  const refreshData = () => {
+  const refreshData = async () => {
     setRefreshing(true);
-    setTimeout(() => {
-      loadSampleData();
-      setRefreshing(false);
+    try {
+      await loadLatestScrapingResults();
       toast.success('Data refreshed successfully!');
-    }, 2000);
+    } catch (error) {
+      toast.error('Failed to refresh data');
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const startNewScraping = () => {
-    setRefreshing(true);
-    setTimeout(() => {
-      loadSampleData();
-      setRefreshing(false);
-      toast.success('New scraping completed!');
-    }, 3000);
+    navigate('/scraping');
   };
 
   // Apply filters and sorting
@@ -302,6 +264,11 @@ const CompetitiveAnalysis: React.FC = () => {
   };
 
   const exportData = () => {
+    if (filteredData.length === 0) {
+      toast.error('No data to export');
+      return;
+    }
+
     const csvData = filteredData.map(row => ({
       'Product ID': row.our_product.id,
       'Product Name': row.our_product.name,
@@ -354,17 +321,87 @@ const CompetitiveAnalysis: React.FC = () => {
     );
   }
 
+  // No scraping data available state
+  if (!hasScrapingData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black p-6">
+        <div className="max-w-4xl mx-auto">
+          {/* Header */}
+          <div className="flex items-center gap-4 mb-8">
+            <Button 
+              variant="ghost" 
+              onClick={() => navigate('/')}
+              className="text-gray-400 hover:text-white hover:bg-gray-800/50"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Dashboard
+            </Button>
+            <div className="h-8 w-px bg-gray-600" />
+            <div>
+              <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 via-blue-500 to-purple-600">
+                Competitive Analysis Dashboard
+              </h1>
+            </div>
+          </div>
+
+          {/* No Data State */}
+          <Card className="bg-gray-800/50 border-gray-700">
+            <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-r from-blue-500/20 to-purple-500/20 flex items-center justify-center mb-6">
+                <BarChart3 className="w-8 h-8 text-blue-400" />
+              </div>
+              <h3 className="text-xl font-semibold mb-2 text-white">No Competitive Data Available</h3>
+              <p className="text-gray-400 mb-6 max-w-md">
+                To perform competitive analysis, you need to first run a competitor scraping task to collect pricing data from competitor stores.
+              </p>
+              <div className="flex gap-3">
+                <Button 
+                  onClick={startNewScraping}
+                  className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700"
+                >
+                  <Search className="w-4 h-4 mr-2" />
+                  Start Scraping Task
+                </Button>
+                <Button 
+                  onClick={refreshData}
+                  variant="outline"
+                  className="border-blue-500/50 text-blue-400 hover:bg-blue-500/10"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Check for Data
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="text-center space-y-4">
-          <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 via-blue-500 to-purple-600">
-            Competitive Analysis Dashboard
-          </h1>
-          <p className="text-gray-300 text-lg">
-            Real-time price comparison matrix across competitor stores
-          </p>
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <Button 
+              variant="ghost" 
+              onClick={() => navigate('/')}
+              className="text-gray-400 hover:text-white hover:bg-gray-800/50"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Dashboard
+            </Button>
+            <div className="h-8 w-px bg-gray-600" />
+            <div>
+              <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 via-blue-500 to-purple-600">
+                Competitive Analysis Dashboard
+              </h1>
+              <p className="text-gray-300 text-lg">
+                Real-time price comparison matrix across competitor stores
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Summary Cards */}
@@ -460,11 +497,7 @@ const CompetitiveAnalysis: React.FC = () => {
                 disabled={refreshing}
                 className="bg-purple-600 hover:bg-purple-700"
               >
-                {refreshing ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                ) : (
-                  <Zap className="h-4 w-4 mr-2" />
-                )}
+                <Zap className="h-4 w-4 mr-2" />
                 New Scraping
               </Button>
             </div>
@@ -651,7 +684,7 @@ const CompetitiveAnalysis: React.FC = () => {
                         </div>
                         <div className="mt-2 flex justify-between items-center">
                           <div className="text-sm text-gray-400">
-                            Match: {(competitor.match_score! * 100).toFixed(0)}% ({competitor.match_confidence})
+                            Match: {((competitor.match_score || 0) * 100).toFixed(0)}% ({competitor.match_confidence || 'unknown'})
                           </div>
                           <a 
                             href={competitor.product_url} 
@@ -662,6 +695,11 @@ const CompetitiveAnalysis: React.FC = () => {
                             View Product →
                           </a>
                         </div>
+                        {competitor.match_reasoning && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            {competitor.match_reasoning}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
