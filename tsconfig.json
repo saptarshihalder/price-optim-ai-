@@ -21,14 +21,17 @@
     "noFallthroughCasesInSwitch": true,
 
     /* Path mapping */
-    "baseUrl": ".",
+    "baseUrl": "./frontend",
     "paths": {
       "@/*": ["./src/*"],
       "components/*": ["./src/components/*"],
       "pages/*": ["./src/pages/*"],
-      "utils/*": ["./src/utils/*"]
+      "utils/*": ["./src/utils/*"],
+      "brain": ["./src/brain"],
+      "brain/*": ["./src/brain/*"],
+      "types": ["./src/brain/data-contracts"]
     }
   },
   "include": ["src"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+  "references": [{ "path": "./frontend/tsconfig.node.json" }]
 }
