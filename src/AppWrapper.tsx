@@ -4,10 +4,8 @@ import { OuterErrorBoundary } from "../frontend/src/prod-components/OuterErrorBo
 import { router } from "./router";
 import { ThemeProvider } from "../frontend/src/internal-components/ThemeProvider";
 import { DEFAULT_THEME } from "../frontend/src/constants/default-theme";
-import { StackProvider, StackTheme } from "@stackframe/react";
-import { stackClientApp } from "../frontend/src/app/auth";
 
-export default function App() {
+export const AppWrapper = () => {
   return (
     <OuterErrorBoundary>
       <ThemeProvider defaultTheme={DEFAULT_THEME}>
@@ -16,4 +14,3 @@ export default function App() {
       </ThemeProvider>
     </OuterErrorBoundary>
   );
-}

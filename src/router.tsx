@@ -6,21 +6,21 @@ export const SuspenseWrapper = ({ children }: { children: ReactNode }) => {
   return <Suspense>{children}</Suspense>;
 };
 
-const App = lazy(() => import("./pages/App"));
-const CompetitiveAnalysis = lazy(() => import("../frontend/src/pages/CompetitiveAnalysis"));
-const PricingRecommendations = lazy(() => import("../frontend/src/pages/PricingRecommendations"));
-const Scraping = lazy(() => import("../frontend/src/pages/Scraping"));
-const NotFoundPage = lazy(() => import("../frontend/src/pages/NotFoundPage"));
-const SomethingWentWrongPage = lazy(() => import("../frontend/src/pages/SomethingWentWrongPage"));
+const App = lazy(() => import("../frontend/src/pages/App"));
+const CompetitiveAnalysis = lazy(() => import("pages/CompetitiveAnalysis"));
+const PricingRecommendations = lazy(() => import("pages/PricingRecommendations"));
+const Scraping = lazy(() => import("pages/Scraping"));
+const NotFoundPage = lazy(() => import("pages/NotFoundPage"));
+const SomethingWentWrongPage = lazy(() => import("pages/SomethingWentWrongPage"));
 
 export const router = createBrowserRouter([
   {
     element: (
-      <AppProvider>
+      <components/AppProvider>
         <SuspenseWrapper>
           <Outlet />
         </SuspenseWrapper>
-      </AppProvider>
+      </components/AppProvider>
     ),
     children: [
       { path: "/", element: <App /> },

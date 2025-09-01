@@ -21,18 +21,18 @@
     "noFallthroughCasesInSwitch": true,
 
     /* Path mapping */
-    "baseUrl": "./src",
+    "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"],
-      "components/*": ["./components/*"],
-      "pages/*": ["./pages/*"],
-      "utils/*": ["./utils/*"],
-      "app": ["./app"],
-      "app/*": ["./app/*"],
-      "brain": ["./brain"],
-      "brain/*": ["./brain/*"],
-      "types": ["./brain/data-contracts"]
+      "@/*": ["./src/*"],
+      "components/*": ["./frontend/src/components/*"],
+      "pages/*": ["./frontend/src/pages/*"],
+      "utils/*": ["./frontend/src/utils/*"],
+      "app": ["./frontend/src/app"],
+      "app/*": ["./frontend/src/app/*"],
+      "brain": ["./frontend/src/brain"],
+      "brain/*": ["./frontend/src/brain/*"],
+      "types": ["./frontend/src/brain/data-contracts"]
     }
   },
-  "include": ["src"]
+  "include": ["src", "frontend/src"]
 }
