@@ -23,7 +23,9 @@
     /* Path mapping */
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"],
+      "@/*": ["./frontend/src/*"],
+      "@/hooks/*": ["./frontend/src/extensions/shadcn/hooks/*"],
+      "@/components/ui/*": ["./frontend/src/extensions/shadcn/components/*"],
       "components/*": ["./frontend/src/components/*"],
       "pages/*": ["./frontend/src/pages/*"],
       "utils/*": ["./frontend/src/utils/*"],
