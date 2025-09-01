@@ -437,7 +437,6 @@
     "eslint-plugin-react-refresh": "0.4.3",
     "estree-walker": "3.0.3",
     "magic-string": "0.30.0",
-    "dotenv": "16.4.5",
     "openapi-types": "12.1.3",
     "postcss": "^8.4.45",
     "raw-body": "2.5.2",
