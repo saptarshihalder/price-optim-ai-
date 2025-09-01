@@ -19,6 +19,8 @@ import {
   Zap,
   BarChart3,
   Sparkles,
+  ArrowLeft
+} from 'lucide-react';
 import brain from '../../frontend/src/brain';
 import { PriceRecommendation } from '../../frontend/src/brain/data-contracts';
 import { toast } from 'sonner';

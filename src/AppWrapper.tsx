@@ -6,6 +6,8 @@ import { ThemeProvider } from "../frontend/src/internal-components/ThemeProvider
 import { DEFAULT_THEME } from "../frontend/src/constants/default-theme";
 import { StackProvider, StackTheme } from "@stackframe/react";
 import { stackClientApp } from "../frontend/src/app/auth";
+
+export default function App() {
   return (
     <OuterErrorBoundary>
       <ThemeProvider defaultTheme={DEFAULT_THEME}>
@@ -14,4 +16,4 @@ import { stackClientApp } from "../frontend/src/app/auth";
       </ThemeProvider>
     </OuterErrorBoundary>
   );
-};
+}
