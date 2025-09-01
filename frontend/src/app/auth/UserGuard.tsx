@@ -5,6 +5,7 @@ import {
   useStackApp,
   useUser,
 } from "@stackframe/react";
+} from "@stackframe/stack";
 import type * as React from "react";
 import { createContext, useContext } from "react";
 import { Navigate, useLocation } from "react-router-dom";
