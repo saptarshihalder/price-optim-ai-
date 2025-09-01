@@ -1,6 +1,6 @@
 import { lazy, type ReactNode, Suspense } from "react";
 import { createBrowserRouter, Outlet } from "react-router-dom";
-import { AppProvider } from "@/components/AppProvider";
+import { AppProvider } from "../frontend/src/components/AppProvider";
 
 export const SuspenseWrapper = ({ children }: { children: ReactNode }) => {
   return <Suspense>{children}</Suspense>;
