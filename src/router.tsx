@@ -7,11 +7,11 @@ export const SuspenseWrapper = ({ children }: { children: ReactNode }) => {
 };
 
 const App = lazy(() => import("./pages/App"));
-const CompetitiveAnalysis = lazy(() => import("./pages/CompetitiveAnalysis"));
-const PricingRecommendations = lazy(() => import("./pages/PricingRecommendations"));
-const Scraping = lazy(() => import("./pages/Scraping"));
-const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
-const SomethingWentWrongPage = lazy(() => import("./pages/SomethingWentWrongPage"));
+const CompetitiveAnalysis = lazy(() => import("../frontend/src/pages/CompetitiveAnalysis"));
+const PricingRecommendations = lazy(() => import("../frontend/src/pages/PricingRecommendations"));
+const Scraping = lazy(() => import("../frontend/src/pages/Scraping"));
+const NotFoundPage = lazy(() => import("../frontend/src/pages/NotFoundPage"));
+const SomethingWentWrongPage = lazy(() => import("../frontend/src/pages/SomethingWentWrongPage"));
 
 export const router = createBrowserRouter([
   {
