@@ -4,7 +4,6 @@ import {
   type CurrentUser,
   useStackApp,
   useUser,
-} from "@stackframe/react";
 } from "@stackframe/stack";
 import type * as React from "react";
 import { createContext, useContext } from "react";
