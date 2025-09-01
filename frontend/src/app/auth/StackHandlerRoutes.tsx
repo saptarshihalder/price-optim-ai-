@@ -1,5 +1,5 @@
 import { APP_BASE_PATH } from '@/constants';
-import { StackHandler } from '@stackframe/react';
+import { StackHandler } from '@stackframe/stack';
 import * as React from 'react';
 import { useLocation } from 'react-router-dom';
 import { stackClientApp } from './stack';
