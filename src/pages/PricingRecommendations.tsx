@@ -21,12 +21,9 @@ import {
   Sparkles,
   ArrowLeft
 } from 'lucide-react';
-import brain from '../../frontend/src/brain';
-import { PriceRecommendation } from '../../frontend/src/brain/data-contracts';
+import brain from 'brain';
+import { PriceRecommendation } from 'types';
 import { toast } from 'sonner';
-import brain from '@/brain';
-import { PriceRecommendation, ProductInput, BatchOptimizationRequest } from 'types';
-import { StorageUtils } from 'utils/storage';
 
 interface RecommendationWithSelection extends PriceRecommendation {
   selected: boolean;

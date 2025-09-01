@@ -1,16 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { brain } from '../brain';
-import { ScrapingProgress, ScrapingResults } from '../brain/data-contracts';
+import { brain } from 'brain';
+import { ScrapingProgress, ScrapingResults } from 'types';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Search, CheckCircle, XCircle, Clock, ArrowLeft } from 'lucide-react';
-import brain from '../../frontend/src/brain';
 import { toast } from 'sonner';
-import brain from 'brain';
-import { ScrapingProgress, ScrapedProduct, ScrapingStatus } from 'types';
-import { StorageUtils } from 'utils/storage';
-import type { CompetitorScrapingRequest, CompetitorScrapingResult } from "@/brain/data-contracts";
 
 const ScrapingDashboard: React.FC = () => {
   const navigate = useNavigate();
