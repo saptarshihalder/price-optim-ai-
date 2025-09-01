@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
-import { Separator } from '@/components/ui/separator';
-import { Progress } from '@/components/ui/progress';
+import { Button } from '../../frontend/src/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../../frontend/src/components/ui/card';
+import { Badge } from '../../frontend/src/components/ui/badge';
+import { Checkbox } from '../../frontend/src/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../frontend/src/components/ui/select';
+import { Input } from '../../frontend/src/components/ui/input';
+import { Separator } from '../../frontend/src/components/ui/separator';
+import { Progress } from '../../frontend/src/components/ui/progress';
 import { useNavigate } from 'react-router-dom';
 import { 
   TrendingUp, 
@@ -22,8 +22,9 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import brain from 'brain';
-import { PriceRecommendation } from 'types';
+import { PriceRecommendation, ProductInput, BatchOptimizationRequest } from 'types';
 import { toast } from 'sonner';
+import { StorageUtils } from '../utils/storage';
 
 interface RecommendationWithSelection extends PriceRecommendation {
   selected: boolean;

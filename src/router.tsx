@@ -16,11 +16,11 @@ const SomethingWentWrongPage = lazy(() => import("pages/SomethingWentWrongPage")
 export const router = createBrowserRouter([
   {
     element: (
-      <components/AppProvider>
+      <AppProvider>
         <SuspenseWrapper>
           <Outlet />
         </SuspenseWrapper>
-      </components/AppProvider>
+      </AppProvider>
     ),
     children: [
       { path: "/", element: <App /> },

@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { brain } from 'brain';
-import { ScrapingProgress, ScrapingResults } from 'types';
-import { Progress } from '@/components/ui/progress';
-import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useNavigate } from 'react-router-dom';
+import brain from 'brain';
+import { ScrapedProduct, ScrapingProgress, ScrapingStatus } from 'types';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../frontend/src/components/ui/card';
+import { Button } from '../../frontend/src/components/ui/button';
+import { Progress } from '../../frontend/src/components/ui/progress';
+import { Badge } from '../../frontend/src/components/ui/badge';
+import { Alert, AlertDescription } from '../../frontend/src/components/ui/alert';
 import { Loader2, Search, CheckCircle, XCircle, Clock, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
+import { StorageUtils } from '../utils/storage';
 
 const ScrapingDashboard: React.FC = () => {
   const navigate = useNavigate();

@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../frontend/src/components/ui/card';
+import { Button } from '../../frontend/src/components/ui/button';
+import { Badge } from '../../frontend/src/components/ui/badge';
+import { Input } from '../../frontend/src/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../frontend/src/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../frontend/src/components/ui/table';
+import { Alert, AlertDescription } from '../../frontend/src/components/ui/alert';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -24,9 +24,9 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { brain } from 'brain';
+import brain from 'brain';
 import { ScrapedProduct } from 'types';
-import { StorageUtils } from 'utils/storage';
+import { StorageUtils } from '../utils/storage';
 
 interface OurProduct {
   id: string;
