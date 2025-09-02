@@ -17,7 +17,14 @@ export default defineConfig({
   plugins: [react(), tsconfigPaths()],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./frontend/src"),
+      '@stackframe/react': path.resolve(__dirname, './src/shims/stackframe-react.tsx'),
+    },
+  },
+  build: {
+    rollupOptions: {
+      external: [
+        '@stackframe/react',
+      ],
     },
   },
 })

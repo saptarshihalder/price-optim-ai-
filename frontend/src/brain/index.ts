@@ -1,4 +1,3 @@
-import { auth } from "app/auth";
 import { API_HOST, API_PATH, API_PREFIX_PATH } from "../constants";
 import { Brain } from "./Brain";
 import type { RequestParams } from "./http-client";
@@ -46,11 +45,8 @@ const constructClient = () => {
       return fetch(url, options);
     },
     securityWorker: async () => {
-      return {
-        headers: {
-          Authorization: await auth.getAuthHeaderValue(),
-        },
-      };
+      // No auth header in this environment
+      return {};
     },
   });
 };

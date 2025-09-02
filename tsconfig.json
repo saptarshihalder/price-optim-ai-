@@ -23,6 +23,7 @@
     /* Path mapping */
     "baseUrl": ".",
     "paths": {
+      "app/auth": ["./src/shims/app-auth.ts"],
       "@/*": ["./frontend/src/*"],
       "@/hooks/*": ["./frontend/src/extensions/shadcn/hooks/*"],
       "@/components/ui/*": ["./frontend/src/extensions/shadcn/components/*"],
