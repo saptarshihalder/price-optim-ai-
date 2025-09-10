@@ -6,10 +6,11 @@ from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import StreamingResponse
 import traceback
 from pydantic import BaseModel, Field
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Set
 import asyncio
 import aiohttp
 import time
+import random
 from dataclasses import dataclass
 from enum import Enum
 import json
@@ -17,7 +18,13 @@ import re
 from urllib.parse import urljoin, urlparse
 from pathlib import Path
 import csv
-from datetime import datetime
+from datetime import datetime, timedelta
+from collections import deque
+try:
+    import httpx
+except Exception:  # Defer hard import errors to runtime usage paths
+    httpx = None  # type: ignore
+from bs4 import BeautifulSoup
 from app.libs.product_matcher import create_product_matcher, ProductMatch
 from app.libs.database import (
     save_scraped_products,
@@ -945,6 +952,404 @@ async def scrape_competitors_background(task_id: str, request: ScrapingRequest):
             await finalize_scraping_run(task_id, progress.status.value if isinstance(progress.status, ScrapingStatus) else str(progress.status))
         except Exception as e2:
             print(f"Failed to finalize run on error: {e2}")
+
+# -------------------------
+# Resilient round-robin scraper
+# -------------------------
+
+@dataclass
+class StoreStatus:
+    name: str
+    last_success: Optional[datetime] = None
+    last_failure: Optional[datetime] = None
+    consecutive_failures: int = 0
+    is_blocked: bool = False
+    retry_after: Optional[datetime] = None
+    rate_limit_delay: float = 1.0
+
+
+class ResilientScraper:
+    def __init__(self):
+        # Round-robin queue of stores to scrape
+        self.store_queue = deque(TARGET_STORES)
+        self.store_status: Dict[str, StoreStatus] = {
+            store.name: StoreStatus(store.name) for store in TARGET_STORES
+        }
+
+        # Failed stores that need retry later
+        self.retry_queue: List[StoreInfo] = []
+
+        # Current session
+        self.client: Optional["httpx.AsyncClient"] = None
+
+        # Delays and limits
+        self.base_delay = (2, 8)  # Random delay between requests (min, max seconds)
+        self.store_switch_delay = (5, 15)  # Delay when switching stores
+        self.max_consecutive_failures = 3
+        self.retry_cooldown = timedelta(minutes=30)  # Wait 30min before retrying blocked store
+
+    def get_random_headers(self) -> Dict[str, str]:
+        """Generate realistic, randomized browser headers"""
+        user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        ]
+
+        accept_languages = [
+            'en-US,en;q=0.9',
+            'en-GB,en;q=0.9',
+            'en-US,en;q=0.8,es;q=0.7',
+            'en-CA,en;q=0.9',
+        ]
+
+        return {
+            'User-Agent': random.choice(user_agents),
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': random.choice(accept_languages),
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'cross-site',
+            'Sec-Fetch-User': '?1',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+        }
+
+    async def __aenter__(self):
+        if httpx is None:
+            raise RuntimeError("httpx is required for ResilientScraper. Please install 'httpx'.")
+        self.client = httpx.AsyncClient(
+            timeout=30.0,
+            follow_redirects=True,
+            limits=httpx.Limits(max_keepalive_connections=5, max_connections=20),
+            # Don't reuse connections too aggressively
+            transport=httpx.AsyncHTTPTransport(retries=1)
+        )
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self.client:
+            await self.client.aclose()
+
+    def get_next_store(self) -> Optional[StoreInfo]:
+        """Get next available store from round-robin queue"""
+        now = datetime.now()
+
+        # Check retry queue first for stores that might be ready
+        ready_retries = []
+        for store in self.retry_queue[:]:
+            status = self.store_status[store.name]
+            if status.retry_after and now >= status.retry_after:
+                ready_retries.append(store)
+                self.retry_queue.remove(store)
+                self.store_queue.append(store)
+                status.is_blocked = False
+                status.consecutive_failures = 0
+
+        if ready_retries:
+            print(f"Re-enabled {len(ready_retries)} stores from retry queue")
+
+        # Try to find an available store
+        attempts = 0
+        while attempts < len(self.store_queue) * 2:  # Prevent infinite loop
+            if not self.store_queue:
+                break
+
+            store = self.store_queue.popleft()
+            status = self.store_status[store.name]
+
+            if not status.is_blocked:
+                # Put it back at end of queue for next round
+                self.store_queue.append(store)
+                return store
+
+            # Store is blocked, keep it out of main queue
+            attempts += 1
+
+        return None
+
+    def mark_store_success(self, store_name: str):
+        """Mark a store as successfully scraped"""
+        status = self.store_status[store_name]
+        status.last_success = datetime.now()
+        status.consecutive_failures = 0
+        status.is_blocked = False
+        print(f"✅ {store_name}: Success")
+
+    def mark_store_failure(self, store_name: str, error: str):
+        """Mark a store as failed and potentially block it"""
+        status = self.store_status[store_name]
+        status.last_failure = datetime.now()
+        status.consecutive_failures += 1
+
+        print(f"❌ {store_name}: Failure #{status.consecutive_failures} - {error}")
+
+        # Block store if too many consecutive failures
+        if status.consecutive_failures >= self.max_consecutive_failures:
+            status.is_blocked = True
+            status.retry_after = datetime.now() + self.retry_cooldown
+
+            # Move store to retry queue
+            store = next((s for s in self.store_queue if s.name == store_name), None)
+            if store:
+                self.store_queue.remove(store)
+                self.retry_queue.append(store)
+
+            print(f"🚫 {store_name}: Blocked until {status.retry_after}")
+
+    async def random_delay(self, delay_range: tuple = None):
+        """Add random delay to avoid detection"""
+        if delay_range is None:
+            delay_range = self.base_delay
+
+        delay = random.uniform(delay_range[0], delay_range[1])
+        print(f"⏳ Waiting {delay:.1f}s...")
+        await asyncio.sleep(delay)
+
+    async def scrape_with_bs4(self, url: str, store_name: str) -> Optional[ScrapedProduct]:
+        """Scrape a single product page with BeautifulSoup"""
+        try:
+            assert self.client is not None
+            # Random headers per request
+            headers = self.get_random_headers()
+
+            response = await self.client.get(url, headers=headers)
+
+            # Handle different HTTP errors
+            if response.status_code == 429:
+                raise httpx.HTTPStatusError("Rate limited", request=response.request, response=response)
+            elif response.status_code == 403:
+                raise httpx.HTTPStatusError("Forbidden/Blocked", request=response.request, response=response)
+            elif response.status_code >= 400:
+                raise httpx.HTTPStatusError(f"HTTP {response.status_code}", request=response.request, response=response)
+
+            # Parse with BeautifulSoup
+            soup = BeautifulSoup(response.text, 'html.parser')
+
+            # Extract product data (simplified for example)
+            title = self.extract_title(soup)
+            price = self.extract_price(soup, response.text)
+
+            if not title or price is None:
+                return None
+
+            return ScrapedProduct(
+                store_name=store_name,
+                product_url=url,
+                title=title,
+                price=price,
+                scraped_at=datetime.now()
+            )
+
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 429:
+                raise Exception("Rate limited")
+            elif e.response.status_code == 403:
+                raise Exception("IP blocked")
+            else:
+                raise Exception(f"HTTP error {e.response.status_code}")
+        except httpx.TimeoutException:
+            raise Exception("Request timeout")
+        except Exception as e:
+            raise Exception(f"Scraping error: {str(e)}")
+
+    def extract_title(self, soup: BeautifulSoup) -> Optional[str]:
+        """Extract product title with fallbacks"""
+        selectors = [
+            'h1.product-title',
+            'h1[data-testid="product-title"]',
+            '.product-name h1',
+            'h1[itemprop="name"]',
+            'h1',
+        ]
+
+        for selector in selectors:
+            element = soup.select_one(selector)
+            if element and element.get_text(strip=True):
+                return element.get_text(strip=True)[:200]  # Limit length
+        return None
+
+    def extract_price(self, soup: BeautifulSoup, html_text: str) -> Optional[float]:
+        """Extract price with multiple fallbacks"""
+
+        # Try CSS selectors first
+        price_selectors = [
+            '[data-testid="price"]',
+            '.price-current',
+            '.product-price',
+            '.price',
+            '[itemprop="price"]',
+        ]
+
+        for selector in price_selectors:
+            elements = soup.select(selector)
+            for element in elements:
+                price_text = element.get_text(strip=True)
+                price = self.parse_price_text(price_text)
+                if price:
+                    return price
+
+        # Fallback to regex
+        price_patterns = [
+            r'\$([0-9,]+\.?[0-9]*)',
+            r'€([0-9,]+\.?[0-9]*)',
+            r'£([0-9,]+\.?[0-9]*)',
+        ]
+
+        for pattern in price_patterns:
+            matches = re.findall(pattern, html_text)
+            if matches:
+                try:
+                    return float(matches[0].replace(',', ''))
+                except ValueError:
+                    continue
+
+        return None
+
+    def parse_price_text(self, text: str) -> Optional[float]:
+        """Parse price from text string"""
+        if not text:
+            return None
+
+        price_match = re.search(r'([0-9,]+\.?[0-9]*)', text.replace(',', ''))
+        if price_match:
+            try:
+                return float(price_match.group(1))
+            except ValueError:
+                pass
+        return None
+
+    async def scrape_stores_round_robin(self, search_terms: List[str], max_products: int = 50) -> List[ScrapedProduct]:
+        """Main scraping method with round-robin and failure handling"""
+        all_products: List[ScrapedProduct] = []
+        total_scraped = 0
+
+        print(f"🚀 Starting round-robin scraping for {len(search_terms)} terms")
+        print(f"📊 Available stores: {len(self.store_queue)}")
+
+        while total_scraped < max_products and (self.store_queue or self.retry_queue):
+            store = self.get_next_store()
+
+            if not store:
+                print("⚠️  No available stores, waiting for retry cooldowns...")
+                await asyncio.sleep(60)  # Wait 1 minute before checking retry queue
+                continue
+
+            print(f"\n🎯 Switching to {store.name}")
+            await self.random_delay(self.store_switch_delay)
+
+            # Try to scrape this store
+            try:
+                store_products = await self.scrape_store(store, search_terms)
+
+                if store_products:
+                    all_products.extend(store_products)
+                    total_scraped += len(store_products)
+                    self.mark_store_success(store.name)
+                    print(f"✅ Got {len(store_products)} products from {store.name}")
+                else:
+                    print(f"📭 No products found at {store.name}")
+                    # Don't mark as failure if no products, just no results
+
+                # Always delay between stores
+                await self.random_delay()
+
+            except Exception as e:
+                error_msg = str(e)
+                self.mark_store_failure(store.name, error_msg)
+
+                # Longer delay after failures
+                await self.random_delay((10, 20))
+
+        print(f"\n🏁 Scraping complete: {total_scraped} total products from {len(set(p.store_name for p in all_products))} stores")
+        return all_products
+
+    async def scrape_store(self, store: StoreInfo, search_terms: List[str]) -> List[ScrapedProduct]:
+        """Scrape a single store for all search terms"""
+        products: List[ScrapedProduct] = []
+        assert self.client is not None
+
+        for term in search_terms:
+            try:
+                # Find product URLs for this term
+                search_url = f"{store.base_url}/search?q={term.replace(' ', '+')}"
+
+                # Get search results page
+                headers = self.get_random_headers()
+                response = await self.client.get(search_url, headers=headers)
+
+                if response.status_code != 200:
+                    continue
+
+                # Extract product URLs (simplified)
+                soup = BeautifulSoup(response.text, 'html.parser')
+                product_links = soup.find_all('a', href=True)
+
+                product_urls: List[str] = []
+                for link in product_links:
+                    href = link['href']
+                    if '/product' in href.lower():
+                        if href.startswith('/'):
+                            href = store.base_url + href
+                        product_urls.append(href)
+
+                # Limit products per search term
+                product_urls = product_urls[:5]
+
+                # Scrape each product
+                for url in product_urls:
+                    try:
+                        product = await self.scrape_with_bs4(url, store.name)
+                        if product:
+                            product.search_term = term
+                            products.append(product)
+
+                        # Small delay between products
+                        await self.random_delay((1, 3))
+
+                    except Exception as e:
+                        print(f"⚠️  Failed to scrape {url}: {e}")
+                        continue
+
+                # Delay between search terms
+                await self.random_delay((2, 5))
+
+            except Exception as e:
+                print(f"⚠️  Failed search for '{term}' on {store.name}: {e}")
+                continue
+
+        return products
+
+
+async def scrape_competitors_resilient(task_id: str, request: ScrapingRequest):
+    """Updated background task using resilient round-robin scraper"""
+    progress = scraping_tasks[task_id]
+    progress.status = ScrapingStatus.RUNNING
+    progress.started_at = datetime.now()
+
+    try:
+        async with ResilientScraper() as scraper:
+            products = await scraper.scrape_stores_round_robin(
+                request.target_products,
+                request.max_products_per_store * len(TARGET_STORES)
+            )
+
+            # Store results
+            scraping_results[task_id] = products
+            progress.products_found = len(products)
+            progress.status = ScrapingStatus.COMPLETED
+            progress.completed_at = datetime.now()
+
+    except Exception as e:
+        progress.status = ScrapingStatus.FAILED
+        progress.errors.append(str(e))
+        progress.completed_at = datetime.now()
 
 @router.post("/start-scraping")
 async def start_scraping(req: Request, background_tasks: BackgroundTasks) -> ScrapingResponse:
