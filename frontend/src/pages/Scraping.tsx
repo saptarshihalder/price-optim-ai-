@@ -37,15 +37,27 @@ const ScrapingDashboard: React.FC = () => {
   const [taskId, setTaskId] = useState<string | null>(null);
   const [progress, setProgress] = useState<ScrapingProgress | null>(null);
   const [results, setResults] = useState<ScrapedProduct[]>([]);
-  const [targetProducts, setTargetProducts] = useState<string[]>([
-    'Wooden Sunglasses',
-    'Thermos Bottle',
-    'Coffee Mugs',
-    'Phone Stand',
-    'Notebooks',
-    'Lunchbox',
-    'Silk Stole'
-  ]);
+  const [targetProducts, setTargetProducts] = useState<string[]>([]);
+
+  // Load canonical targets derived from the catalog CSV
+  useEffect(() => {
+    const loadTargets = async () => {
+      try {
+        const res = await brain.load_target_products();
+        const data = await res.json();
+        if (Array.isArray(data.targets) && data.targets.length) {
+          setTargetProducts(data.targets);
+        } else {
+          // Fallback if catalog empty
+          setTargetProducts(['Coffee Mug']);
+        }
+      } catch (e) {
+        console.error('Failed to load catalog targets', e);
+        setTargetProducts(['Coffee Mug']);
+      }
+    };
+    loadTargets();
+  }, []);
 
   const startScraping = async () => {
     try {
@@ -54,7 +66,7 @@ const ScrapingDashboard: React.FC = () => {
       
       const response = await brain.start_scraping({
         target_products: targetProducts,
-        max_products_per_store: 15
+        max_products_per_store: 17
       });
       
       const data = await response.json();
@@ -74,19 +86,26 @@ const ScrapingDashboard: React.FC = () => {
 
     const pollProgress = async () => {
       try {
-        const response = await brain.get_scraping_progress({ taskId: taskId });
+        const response = await brain.get_scraping_progress({ taskId });
         const progressData = await response.json();
         setProgress(progressData);
 
         if (progressData.status === 'completed') {
+          // Stop polling as soon as we know we're done
+          clearInterval(interval);
+
           // Fetch results
-          const resultsResponse = await brain.get_scraping_results({ taskId: taskId });
+          const resultsResponse = await brain.get_scraping_results({ taskId });
           const resultsData = await resultsResponse.json();
           setResults(resultsData);
           setIsLoading(false);
+          // Clear taskId to fully stop effect and avoid further polls
+          setTaskId(null);
           toast.success(`Scraping completed! Found ${resultsData.length} products.`);
         } else if (progressData.status === 'failed') {
+          clearInterval(interval);
           setIsLoading(false);
+          setTaskId(null);
           toast.error('Scraping failed. Check the error logs.');
         }
       } catch (error) {
@@ -94,7 +113,9 @@ const ScrapingDashboard: React.FC = () => {
       }
     };
 
-    const interval = setInterval(pollProgress, 2000); // Poll every 2 seconds
+    // Poll every 2 seconds and also once immediately
+    const interval = setInterval(pollProgress, 2000);
+    void pollProgress();
     return () => clearInterval(interval);
   }, [taskId]);
 
@@ -224,7 +245,7 @@ const ScrapingDashboard: React.FC = () => {
                 </div>
               </div>
               
-              {progress.current_store && (
+              {progress.status === 'running' && progress.current_store && (
                 <Alert className="bg-blue-500/10 border-blue-500/30">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   <AlertDescription className="text-blue-300">

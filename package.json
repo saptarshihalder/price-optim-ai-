@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:backend": "powershell -ExecutionPolicy Bypass -File scripts/run-backend.ps1",
+    "dev:frontend": "powershell -ExecutionPolicy Bypass -File scripts/run-frontend.ps1",
+    "dev:full": "powershell -ExecutionPolicy Bypass -File scripts/run.ps1",
     "build": "vite build",
     "preview": "vite preview"
   },

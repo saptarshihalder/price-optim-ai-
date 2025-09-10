@@ -6,13 +6,33 @@ import asyncio
 import math
 import json
 from datetime import datetime
+import os
 from openai import OpenAI
-import databutton as db
+
+# Databutton is optional in local/dev; avoid hard dependency on project id
+try:  # pragma: no cover - optional dependency in local dev
+    import databutton as db  # type: ignore
+except Exception:  # Module may be missing or misconfigured
+    db = None  # type: ignore
 
 router = APIRouter()
 
-# Initialize OpenAI client
-client = OpenAI(api_key=db.secrets.get("OPENAI_API_KEY"))
+# Resolve OpenAI API key from environment first, then Databutton secrets if available
+def _resolve_openai_api_key() -> str | None:
+    key = os.getenv("OPENAI_API_KEY")
+    if key:
+        return key
+    if db is not None:
+        try:
+            return db.secrets.get("OPENAI_API_KEY")  # type: ignore[attr-defined]
+        except Exception:
+            return None
+    return None
+
+_OPENAI_API_KEY = _resolve_openai_api_key()
+
+# Create client only if we have a key; downstream calls will gracefully fallback on failure
+client = OpenAI(api_key=_OPENAI_API_KEY) if _OPENAI_API_KEY else None  # type: ignore[assignment]
 
 # Pydantic Models
 class ProductInput(BaseModel):

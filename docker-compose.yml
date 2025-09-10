@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  app:
+    build: .
+    container_name: price-optim-ai
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      # Optionally choose storage backend; defaults to sqlite when unset
+      # - STORAGE_BACKEND=sqlite
+      # Google Sheets / Airtable / Postgres envs can be added here if needed
+    volumes:
+      # Persist exported CSVs to host
+      - ./product_data:/app/product_data
+    restart: unless-stopped
+

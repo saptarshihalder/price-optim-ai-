@@ -6,7 +6,7 @@ export const SuspenseWrapper = ({ children }: { children: ReactNode }) => {
   return <Suspense>{children}</Suspense>;
 };
 
-const App = lazy(() => import("../frontend/src/pages/App"));
+const App = lazy(() => import("pages/App"));
 const CompetitiveAnalysis = lazy(() => import("pages/CompetitiveAnalysis"));
 const PricingRecommendations = lazy(() => import("pages/PricingRecommendations"));
 const Scraping = lazy(() => import("pages/Scraping"));
@@ -43,3 +43,4 @@ export const router = createBrowserRouter([
     ),
   },
 ]);
+

@@ -1,22 +1,31 @@
-import { API_HOST, API_PATH, API_PREFIX_PATH } from "../constants";
+import { API_HOST, API_PATH, API_PREFIX_PATH, API_URL, mode, Mode } from "../constants";
 import { Brain } from "./Brain";
 import type { RequestParams } from "./http-client";
 
 const isLocalhost = /localhost:\d{4}/i.test(window.location.origin);
 
 const constructBaseUrl = (): string => {
-  if (isLocalhost) {
-    // In workspace (dev)
-    return `${window.location.origin}${API_PATH}`;
+  // During vite dev server we proxy /routes -> backend, so use dev origin
+  if (mode === Mode.DEV) {
+    return `${window.location.origin}`;
+  }
+
+  // Prefer explicit API_URL when set to a real remote URL
+  if (API_URL && /^https?:\/\//i.test(API_URL) && !/localhost|127\.0\.0\.1/.test(API_URL)) {
+    return API_URL;
+  }
+
+  // If running from a built app served by the backend, use current origin
+  if (typeof window !== 'undefined' && window.location && window.location.origin) {
+    return window.location.origin;
   }
 
   if (API_HOST && API_PREFIX_PATH) {
-    // In deployed app (prod)
     return `https://${API_HOST}${API_PREFIX_PATH}`;
   }
 
-  // In deployed app (prod)
-  return `https://api.databutton.com${API_PATH}`;
+  // Final fallback (unused in our deployment)
+  return '';
 };
 
 type BaseApiParams = Omit<RequestParams, "signal" | "baseUrl" | "cancelToken">;
@@ -36,12 +45,6 @@ const constructClient = () => {
     baseUrl,
     baseApiParams,
     customFetch: (url, options) => {
-      if (API_HOST && API_HOST !== "api.databutton.com") {
-        // Remove /routes/ segment from start of path if
-        // running API through custom domain
-        return fetch(url.replace("/api/routes/", "/api/"), options);
-      }
-
       return fetch(url, options);
     },
     securityWorker: async () => {

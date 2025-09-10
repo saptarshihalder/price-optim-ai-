@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: price-optim-ai-backend
+    env: docker
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: 10000
+    # Render will build the Dockerfile in the repo root
+

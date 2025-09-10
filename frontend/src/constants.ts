@@ -33,19 +33,20 @@ declare const __APP_BASE_PATH__: string;
 export const APP_BASE_PATH = __APP_BASE_PATH__;
 
 declare const __APP_TITLE__: string;
-export const APP_TITLE = __APP_TITLE__;
+// Safe fallback if not defined by bundler
+export const APP_TITLE = typeof __APP_TITLE__ === 'undefined' ? 'PriceOptim AI' : __APP_TITLE__;
 
 declare const __APP_FAVICON_LIGHT__: string;
-export const APP_FAVICON_LIGHT = __APP_FAVICON_LIGHT__;
+export const APP_FAVICON_LIGHT = typeof __APP_FAVICON_LIGHT__ === 'undefined' ? '/vite.svg' : __APP_FAVICON_LIGHT__;
 
 declare const __APP_FAVICON_DARK__: string;
-export const APP_FAVICON_DARK = __APP_FAVICON_DARK__;
+export const APP_FAVICON_DARK = typeof __APP_FAVICON_DARK__ === 'undefined' ? '/vite.svg' : __APP_FAVICON_DARK__;
 
 declare const __APP_DEPLOY_USERNAME__: string;
-export const APP_DEPLOY_USERNAME = __APP_DEPLOY_USERNAME__;
+export const APP_DEPLOY_USERNAME = typeof __APP_DEPLOY_USERNAME__ === 'undefined' ? '' : __APP_DEPLOY_USERNAME__;
 
 declare const __APP_DEPLOY_APPNAME__: string;
-export const APP_DEPLOY_APPNAME = __APP_DEPLOY_APPNAME__;
+export const APP_DEPLOY_APPNAME = typeof __APP_DEPLOY_APPNAME__ === 'undefined' ? '' : __APP_DEPLOY_APPNAME__;
 
 declare const __APP_DEPLOY_CUSTOM_DOMAIN__: string;
-export const APP_DEPLOY_CUSTOM_DOMAIN = __APP_DEPLOY_CUSTOM_DOMAIN__;
+export const APP_DEPLOY_CUSTOM_DOMAIN = typeof __APP_DEPLOY_CUSTOM_DOMAIN__ === 'undefined' ? '' : __APP_DEPLOY_CUSTOM_DOMAIN__;

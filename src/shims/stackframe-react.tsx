@@ -6,3 +6,4 @@ export const StackTheme = {} as const;
 export const useStackApp = () => ({ navigate: () => {} });
 export const useUser = () => ({ user: null });
 export class StackClientApp {}
+

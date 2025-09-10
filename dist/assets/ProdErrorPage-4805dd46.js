@@ -1,0 +1,1 @@
+import{j as o}from"./index-50404dee.js";const i=({text:e,canRefresh:l})=>o.jsxs("div",{style:{display:"flex",flexFlow:"column",gap:"20px",padding:"20px"},children:[e,o.jsx("div",{style:{display:"flex",gap:"10px"},children:l&&o.jsx("button",{style:{color:"blue",width:"fit-content"},type:"button",onClick:()=>{window.location.reload()},children:"Reload page"})})]});export{i as P};

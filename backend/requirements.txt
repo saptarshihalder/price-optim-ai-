@@ -7,6 +7,9 @@ databutton==0.38.34
 openai
 beautifulsoup4
 requests
-asyncpg
 aiohttp
 lxml
+gspread==6.1.4
+google-auth==2.35.0
+pyairtable==2.3.3
+psycopg2-binary==2.9.9
